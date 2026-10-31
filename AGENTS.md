@@ -17,24 +17,56 @@ Planned capabilities:
 - Automated parsing of pasted game share results
 - Daily and weekly group leaderboards
 
+## Accepted product direction
+
+Clarified by the user on October 30, 2026; this is planned behavior, not a claim of completed implementation.
+
+- The homepage directly mounts one `ScoreForm` containing player name and a multiline pasted game-result field. The user restored the name input and requested no extra `GameScoreForm` wrapper. Names are temporary display text, not authenticated identity. The eventual form should accept all supported games.
+- A parsing layer identifies the game, delegates to its parser, and produces a structured score record for storage. Only games with implemented parsing support are accepted.
+- Each game has its own class responsible for its custom standardized-score calculation on a 1–100 scale. Keep game-specific interpretation and scoring separate from the reusable form and leaderboard presentation.
+- The homepage also contains a player leaderboard derived from players' score records across supported games. The formula for combining records is still undecided.
+- The chronological submission list and the player leaderboard are separate concepts. Removing ranks from submission cards did not remove the planned player leaderboard.
+- Storage backend, scoring formulas, failure handling, weighting, time windows, and aggregation remain to be implemented or decided. Do not invent these rules or complete the architecture automatically.
+
+### Planned form workflow
+
+Recorded from the user's workflow discussion on October 30, 2026. This describes the intended next behavior; the current form still previews only after its button is clicked and does not save.
+
+1. The user enters a player name and pastes a game share result into the multiline text field.
+2. Changes to the result text trigger local game detection and validation. Each supported game's class interprets its own format.
+3. As soon as the input is valid, show the appropriate game-specific card inside the shared `ScoreCard` shell for review. Editing the result updates or removes the preview so it reflects the current input.
+4. Enable Submit when the player name and result are valid. Submit means save the previewed result, rather than first generating its preview.
+5. Send the submission to the server, validate it there, and save the score record. Show confirmation only after a successful save. On failure, preserve the input and preview for retry.
+6. Later, authentication supplies a stable player ID rather than trusting an entered display name as identity.
+
+### Input and storage reasoning
+
+- Accept valid content whether pasted, typed, or corrected. Do not impose a paste-only restriction: it does not prove authenticity and would interfere with corrections and assistive input.
+- Immediate local parsing is the proposed implementation approach. A full paste normally produces one change event, and the supported share texts are small. No debounce is currently needed; revisit only if parsing becomes expensive.
+- Derive the preview from current input rather than storing a separate submitted-input snapshot. This is a proposed refactor, not current behavior.
+- Avoid showing errors on every incomplete edit; show a preview once valid. Exact invalid-input messaging remains a UI detail to refine.
+- Parsing during edits must not save or issue server requests. Reserve server submission for Submit.
+- Game classes own recognition, parsing/validation, formatting, and game-specific standardized scoring. They produce plain typed data; database records are not class instances and do not store methods.
+- Use `Score<TResult>` for shared submission fields plus a typed game-specific `result` such as `WordleResult`. Current player display names are temporary; final account linkage, database schema, puzzle-date conversion, and standardized scoring formulas remain unresolved.
+- The server must validate submitted values and calculate trusted game-specific values before storage. Client-side parsing is for feedback and does not establish trust.
+
 ## Primary objective: learn full-stack development
 
 The user wants to learn how and why the application works, not have an AI generate the entire application. Act as a coding mentor.
 
 - Break work into small, manageable milestones and exercises.
 - Explain concepts before introducing them.
-- Let the user attempt implementations themselves.
+- Make each small implementation step directly in the project files, then explain how and why it works. Leave room for user exercises when requested.
 - Review their actual code, explain issues, and guide revisions.
-- Offer hints and focused examples before complete solutions.
-- Only write complete implementation solutions when the user requests them.
+- Keep implementation changes focused on the current learning step rather than completing whole milestones at once.
 - Do not autonomously scaffold or build the application simply because a roadmap exists.
 - Administrative documentation, such as this file, may be written when requested.
 - Adapt instruction to the user's demonstrated experience. Their JavaScript and HTML/CSS experience has not yet been established.
 - Preferred component style: define React components with typed arrow-function declarations, such as `const Component = () => { ... }`, and place `export default Component;` separately when a default export is needed. Use this style for new components unless the user changes the preference.
-- Code guidance preference: do not provide actual implementation code unless the user explicitly asks for code. Describe the next change, explain the relevant concepts, and use prose or naming guidance instead. When the user asks for code, provide only the amount requested.
+- Code guidance preference (updated by the user): directly write code in project files for each small development step, while retaining explanations of the concepts and changes. This authorizes incremental implementation, not autonomous completion of the roadmap.
 - Explanation level: explain JavaScript and related concepts as if the user is new to JavaScript but already comfortable with general programming ideas. Define JavaScript-specific syntax and vocabulary, connect it to familiar programming concepts, and avoid assuming prior JavaScript knowledge.
 
-Suggested learning loop: explain a concept → assign a small exercise → user attempts it → review → user revises → verify understanding.
+Suggested learning loop: explain a concept → implement a small step in the files → walk through the change → discuss the user's understanding → choose the next small step. Use user-led exercises when requested.
 
 ## Standing project preference: verification on request
 
@@ -96,13 +128,13 @@ Start with Wordle and expand after the core workflow is understood. These milest
 | --- | --- | --- | --- |
 | 1. Local setup | Customized homepage | Terminal, npm, project structure, development server, Git | User can run the app and explain their first edit |
 | 2. Static scoreboard | Sample Wordle scores rendered from an array | Semantic HTML, CSS, TypeScript objects, React components and props | Sample scores render correctly |
-| 3. Score entry | Form with temporary local scores | State, events, forms, validation | Valid submissions appear in the scoreboard |
+| 3. Score entry | Automatic valid-result preview and explicit Submit, initially with temporary local records | State, derived data, events, forms, validation | Valid input previews before Submit; submitted records appear in score history |
 | 4. First deployment | Public prototype | GitHub, build checks, Vercel deployment | App works at a public URL |
 | 5. Backend basics | Score submission endpoint | HTTP, JSON, requests and responses, server validation | User can trace a submission from browser to server |
 | 6. Persistent data | Scores stored in Supabase | SQL, tables, keys, constraints, migrations | Scores survive a reload |
 | 7. Authentication | Sign-in and personal submissions | Sessions, authentication versus authorization, row-level security | Users can modify only their own scores |
 | 8. Friend groups | Groups and memberships | Relational modeling, joins, permissions | Group data is accessible only to members |
-| 9. Leaderboards | Daily and weekly group standings | Aggregation, ranking, dates, time zones | Known sample data produces expected rankings |
+| 9. Leaderboards | Homepage player standings from game-specific standardized scores (1–100), with daily/weekly group views | Normalization, aggregation, ranking, dates, time zones | Agreed formulas produce expected rankings from known records |
 | 10. More games and parsing | Mini, Connections, Krillion, and pasted share results | Game-specific data models, parsing, meaningful automated tests | Supported formats parse and invalid input produces useful errors |
 | 11. Release polish | Reliable deployed application | Error handling, accessibility, production configuration | Core flows work across users and devices |
 
@@ -111,7 +143,8 @@ Start with Wordle and expand after the core workflow is understood. These milest
 Do not silently invent rules for these unresolved questions:
 - What is a valid result for each game, including failures?
 - How are guesses, elapsed time, and mistakes represented?
-- Are games ranked separately, and if combined, how are scores normalized?
+- What formula does each game's class use to produce a standardized score from 1–100?
+- How are a player's standardized results combined: averages, totals, best results, or another method? How are game participation, weighting, and time windows handled?
 - How are ties and missing submissions handled?
 - Which puzzle date and time zone define a day and a week?
 - Are duplicate submissions allowed, and can results be edited?
@@ -129,13 +162,26 @@ Last checked: October 15, 2026.
 - Installed tools observed: Node.js 24.21.0, npm 11.19.0, Git 2.55.0, and the VS Code `code` command.
 - These are observations, not pinned version requirements. Recheck when necessary.
 - No Supabase project, GitHub repository, or Vercel deployment has been verified.
-- Milestone 1 is in progress. Installed starter dependencies include Next.js 16.4.2, React 19.3.0, TypeScript, Tailwind CSS, and ESLint. `npm run lint` and `npx tsc --noEmit` passed after relocation. Browser behavior and the user's first homepage edit have not yet been verified.
+- The homepage directly shows `ScoreForm` and the player leaderboard, without the submission scoreboard/table. The form recognizes/parses Wordle once, keeps a parsed preview with trimmed player name, and renders `WordleScoreCard`; either input edit clears preview/feedback. `GameScoreForm` was removed, and the unused generic `ScoreBoard` no longer contains a form. No records, authentication, scoring, or persistence were added, and no app checks were run.
+- The homepage includes a separate player leaderboard prototype with name, points, and streak columns and selectable ordering. `samplePlayers` values and IDs are display fixtures, not derived metrics or authenticated users. Point aggregation, streak definition, and time windows remain undecided. No app checks were run for it.
+- A `/my-scores` page shows sample history for temporary demo player `ZBot`, linked from the homepage. Authentication is deferred at the user's request; this page does not establish identity, enforce permissions, persist data, or include new submissions. No app checks were run for it.
+- Milestone 1 (local setup and customized homepage) is complete: the user ran the development server, edited the homepage heading and tagline, learned the starter project structure, and reports that the project has been pushed to GitHub. The remote was not independently verified.
+- Milestone 2 (static Wordle scoreboard) is in progress: typed score data, sample data, `ScoreCard`, shared type/data modules, Tailwind styling, and generic board/form components are implemented. The user replaced visible guess ranking with submission-date ordering; newest-first is the current implementation assumption. Scores carry separate puzzle dates and submission timestamps. The old ranking helper remains unused. Form feedback parses solved Wordle results, but adding submissions is not implemented; final presentation and understanding remain to be confirmed.
 - Environment setup progress: `.nvmrc` pins Node.js 24.22.0 (npm 12.2.0 observed). The user's `~/.zshrc` now loads a project-based nvm auto-switch hook on shell startup and directory changes; switching to a temporary Node 20.17.0 fixture and back was verified. Existing terminals need `source ~/.zshrc` or a new terminal to load the hook. Missing versions prompt the user to run `nvm install` rather than downloading automatically. See `docs/learning-notes.md` for explanation.
 
-The next user exercise is:
-1. Run `npm run dev` from the project root and open the URL printed by the development server.
-2. Inspect `package.json`, `app/page.tsx`, and `app/layout.tsx` with mentoring explanations.
-3. Edit `app/page.tsx` to show an app heading and a descriptive sentence.
-4. Verify the browser updates and request code review.
+The next session should resume with:
+1. Inspect the current `ScoreForm` and Wordle behavior, then implement the planned local preview-on-edit workflow in a small step. Keep parsing separate from saving; there is no backend save yet, so do not display a false saved confirmation.
+2. Continue from abstract `Game<TResult>` and its stateless `WordleGame` subclass for behavior, plus plain `Score<TResult>` for individual submissions. Records have common player/game/date/message/standardized-score fields and a typed game-specific `result`; fixtures explicitly use `Score<Pick<WordleResult, "guesses">>`, not full parsed grids. Add game dispatch incrementally and agree on Wordle's standardized-score formula before implementing scoring. No form-to-record integration, score calculation, authenticated user ID, or persistence exists yet. Later connect stored records to a separate player leaderboard. Preserve submission-date ordering in any submission list.
+3. Continue through small exercises, marking milestones complete only when their completion criteria are satisfied.
 
 Future sessions should inspect the actual files and user changes before deciding where to resume. Update progress here as milestones are completed or requirements change; do not mark suggested work as completed.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
