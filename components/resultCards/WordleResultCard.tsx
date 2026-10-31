@@ -5,15 +5,18 @@ import type { WordleResult } from "@/types/wordle";
 type WordleResultCardProps = {
   result: WordleResult;
   player?: string;
+  datePlayed?: string;
 };
 
-const WordleResultCard = ({ result, player }: WordleResultCardProps) => {
+const WordleResultCard = ({ result, player, datePlayed }: WordleResultCardProps) => {
   return (
     <ResultCard
-      title={`Wordle #${result.puzzleNumber.toLocaleString("en-US")}`}
+      gameName="Wordle"
       player={player}
-      message={wordleGame.formatResult(result)}
-      resultLabel={`Solved · ${result.guesses}/6`}
+      datePlayed={datePlayed ?? wordleGame.dayPlayed(result) ?? undefined}
+      score={wordleGame.standardScore(result)}
+      message={wordleGame.resultMessage(result)}
+      resultLabel={`Puzzle #${result.puzzleNumber.toLocaleString("en-US")} · ${result.guesses}/6`}
     >
       <figure>
         <figcaption className="sr-only">Wordle guess grid</figcaption>

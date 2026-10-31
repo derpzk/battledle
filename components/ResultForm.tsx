@@ -2,44 +2,38 @@
 
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
-import { wordleGame } from "@/lib/games/WordleGame";
-import WordleResultCard from "@/components/resultCards/WordleResultCard";
-import type { WordleResult } from "@/types/wordle";
+import { identifyResult } from "@/lib/games/registry";
 
 const ResultForm = () => {
   const [playerName, setPlayerName] = useState("");
   const [shareResult, setShareResult] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [preview, setPreview] = useState<{
-    result: WordleResult;
-    player: string;
-  } | null>(null);
   const playerNameId = useId();
   const shareResultId = useId();
   const shareInstructionsId = useId();
+  const detectionFeedbackId = useId();
+  const previewHeadingId = useId();
+  const identification = identifyResult(shareResult);
+  const preview = identification.status === "valid" ? identification.preview : null;
+  const detectionError = identification.status === "invalid" || identification.status === "undetected"
+    ? identification.message
+    : "";
+  const player = playerName.trim();
+  const canSubmit = player.length > 0 && preview !== null;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    setPreview(null);
-
-    if (!wordleGame.recognizes(shareResult)) {
-      setFeedback("This game isn't supported yet. Paste a Wordle share result to preview it.");
+    if (!canSubmit) {
       return;
     }
 
-    const result = wordleGame.parse(shareResult);
-    if (!result) {
-      setFeedback("Couldn't read this Wordle result. Include its header and each five-tile row on a separate line, using ⬛, ⬜, 🟨, or 🟩. Remove any links. Only solved results are supported currently.");
-      return;
-    }
-
-    setFeedback(wordleGame.formatResult(result));
-    setPreview({ result, player: playerName.trim() });
+    setFeedback("Your result is valid, but saving isn't connected yet. Nothing has been saved.");
   };
 
   return (
-    <form className="my-4 flex flex-col gap-2" onSubmit={handleSubmit}>
+    <div className="my-6 grid min-w-0 grid-cols-1 items-start gap-8 md:grid-cols-2">
+    <form className="flex min-w-0 flex-col gap-2" onSubmit={handleSubmit}>
       <label htmlFor={playerNameId}>Player name</label>
       <input
         id={playerNameId}
@@ -48,10 +42,10 @@ const ResultForm = () => {
         value={playerName}
         onChange={(event) => {
           setPlayerName(event.target.value);
-          setPreview(null);
           setFeedback("");
         }}
         className="rounded border border-zinc-400 px-3 py-2"
+        required
       />
       <label htmlFor={shareResultId} className="mt-2">
         Game result
@@ -59,7 +53,10 @@ const ResultForm = () => {
       <p
         id={shareInstructionsId}
         className="text-sm text-zinc-600 dark:text-zinc-400"
-      />
+      >
+        Paste the full share result from a supported game, preserving its original
+        text and line breaks. A valid result appears automatically in the preview.
+      </p>
       <textarea
         id={shareResultId}
         name="shareResult"
@@ -68,21 +65,41 @@ const ResultForm = () => {
         onChange={(event) => {
           setShareResult(event.target.value);
           setFeedback("");
-          setPreview(null);
         }}
-        aria-describedby={shareInstructionsId}
+        aria-describedby={`${shareInstructionsId} ${detectionFeedbackId}`}
+        aria-invalid={Boolean(detectionError)}
         placeholder="Paste your game's share result here…"
         className="w-full min-w-0 resize-y rounded border border-zinc-400 px-3 py-2"
+        required
       />
+      <p id={detectionFeedbackId} role="status" className="text-sm text-red-700 dark:text-red-400">
+        {detectionError}
+      </p>
       <button
         type="submit"
-        className="self-start rounded border border-zinc-400 px-3 py-2"
+        disabled={!canSubmit}
+        className="mt-3 self-start rounded-lg bg-zinc-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
       >
-        Read game result
+        Submit result
       </button>
       <p role="status">{feedback}</p>
-      {preview && <WordleResultCard result={preview.result} player={preview.player} />}
     </form>
+    <section aria-labelledby={previewHeadingId} className="min-w-0">
+      <h3 id={previewHeadingId} className="mb-4 text-sm font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+        Result preview
+      </h3>
+      <p role="status" className="sr-only">
+        {preview ? `Valid ${preview.gameName} result. Preview available.` : "Waiting for a valid game result."}
+      </p>
+      {preview ? (
+        preview.renderCard(player)
+      ) : (
+        <div className="flex min-h-64 items-center justify-center rounded-3xl border-2 border-dashed border-zinc-300 px-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+          Paste a valid game result to see your card here.
+        </div>
+      )}
+    </section>
+    </div>
   );
 };
 

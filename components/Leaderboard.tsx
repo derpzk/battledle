@@ -1,13 +1,13 @@
 "use client";
 
 import { useId, useState } from "react";
-import type { PlayerStanding } from "@/types/player";
+import type { Player } from "@/types/player";
 
 type LeaderboardProps = {
-  players: PlayerStanding[];
+  players: Pick<Player, "id" | "name" | "totalPoints" | "siteStreak">[];
 };
 
-type SortField = "totalPoints" | "streak" | "name";
+type SortField = "totalPoints" | "siteStreak" | "name";
 
 const Leaderboard = ({ players }: LeaderboardProps) => {
   const [sortField, setSortField] = useState<SortField>("totalPoints");
@@ -18,7 +18,11 @@ const Leaderboard = ({ players }: LeaderboardProps) => {
       return first.name.localeCompare(second.name, "en");
     }
 
-    return second[sortField] - first[sortField];
+    if (sortField === "siteStreak") {
+      return second.siteStreak.currentStreak - first.siteStreak.currentStreak;
+    }
+
+    return second.totalPoints - first.totalPoints;
   });
 
   return (
@@ -31,14 +35,14 @@ const Leaderboard = ({ players }: LeaderboardProps) => {
           value={sortField}
           onChange={(event) => {
             const value = event.target.value;
-            if (value === "totalPoints" || value === "streak" || value === "name") {
+            if (value === "totalPoints" || value === "siteStreak" || value === "name") {
               setSortField(value);
             }
           }}
           className="rounded border border-zinc-400 bg-white px-3 py-2 dark:bg-black"
         >
           <option value="totalPoints">Total points (highest first)</option>
-          <option value="streak">Streak (highest first)</option>
+          <option value="siteStreak">Site streak (highest first)</option>
           <option value="name">Player name (A–Z)</option>
         </select>
       </div>
@@ -52,7 +56,7 @@ const Leaderboard = ({ players }: LeaderboardProps) => {
               <tr>
                 <th scope="col" aria-sort={sortField === "name" ? "ascending" : undefined} className="px-4 py-3">Player</th>
                 <th scope="col" aria-sort={sortField === "totalPoints" ? "descending" : undefined} className="px-4 py-3 text-right">Total points</th>
-                <th scope="col" aria-sort={sortField === "streak" ? "descending" : undefined} className="px-4 py-3 text-right">Streak</th>
+                <th scope="col" aria-sort={sortField === "siteStreak" ? "descending" : undefined} className="px-4 py-3 text-right">Site streak</th>
               </tr>
             </thead>
             <tbody>
@@ -60,7 +64,7 @@ const Leaderboard = ({ players }: LeaderboardProps) => {
                 <tr key={player.id} className="border-t border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900">
                   <th scope="row" className="px-4 py-3 font-medium">{player.name}</th>
                   <td className="px-4 py-3 text-right tabular-nums">{player.totalPoints}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{player.streak}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{player.siteStreak.currentStreak}</td>
                 </tr>
               ))}
             </tbody>

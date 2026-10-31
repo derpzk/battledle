@@ -19,9 +19,11 @@ Planned capabilities:
 
 ## Accepted product direction
 
+Terminology updated October 31, 2026: **result** means the complete inputted play/submission; **score** means only its standardized numeric value. Use `Result<TResult>`, result components/data, for records; the former `/my-results` route is currently removed pending a user-led rebuild. Keep numeric `score` and `standardScore` names.
+
 Clarified by the user on October 30, 2026; this is planned behavior, not a claim of completed implementation.
 
-- The homepage directly mounts one `ScoreForm` containing player name and a multiline pasted game-result field. The user restored the name input and requested no extra `GameScoreForm` wrapper. Names are temporary display text, not authenticated identity. The eventual form should accept all supported games.
+- The homepage directly mounts one `ResultForm` containing player name and a multiline pasted game-result field. The user restored the name input and requested no extra `GameScoreForm` wrapper. Names are temporary display text, not authenticated identity. The eventual form should accept all supported games.
 - A parsing layer identifies the game, delegates to its parser, and produces a structured score record for storage. Only games with implemented parsing support are accepted.
 - Each game has its own class responsible for its custom standardized-score calculation on a 1–100 scale. Keep game-specific interpretation and scoring separate from the reusable form and leaderboard presentation.
 - The homepage also contains a player leaderboard derived from players' score records across supported games. The formula for combining records is still undecided.
@@ -34,7 +36,7 @@ Recorded from the user's workflow discussion on October 30, 2026. This describes
 
 1. The user enters a player name and pastes a game share result into the multiline text field.
 2. Changes to the result text trigger local game detection and validation. Each supported game's class interprets its own format.
-3. As soon as the input is valid, show the appropriate game-specific card inside the shared `ScoreCard` shell for review. Editing the result updates or removes the preview so it reflects the current input.
+3. As soon as the input is valid, show the appropriate game-specific card inside the shared `ResultCard` shell for review. Editing the result updates or removes the preview so it reflects the current input.
 4. Enable Submit when the player name and result are valid. Submit means save the previewed result, rather than first generating its preview.
 5. Send the submission to the server, validate it there, and save the score record. Show confirmation only after a successful save. On failure, preserve the input and preview for retry.
 6. Later, authentication supplies a stable player ID rather than trusting an entered display name as identity.
@@ -43,11 +45,11 @@ Recorded from the user's workflow discussion on October 30, 2026. This describes
 
 - Accept valid content whether pasted, typed, or corrected. Do not impose a paste-only restriction: it does not prove authenticity and would interfere with corrections and assistive input.
 - Immediate local parsing is the proposed implementation approach. A full paste normally produces one change event, and the supported share texts are small. No debounce is currently needed; revisit only if parsing becomes expensive.
-- Derive the preview from current input rather than storing a separate submitted-input snapshot. This is a proposed refactor, not current behavior.
+- Derive the preview from current input rather than storing a separate submitted-input snapshot. This local preview behavior is now implemented; saving remains unconnected.
 - Avoid showing errors on every incomplete edit; show a preview once valid. Exact invalid-input messaging remains a UI detail to refine.
 - Parsing during edits must not save or issue server requests. Reserve server submission for Submit.
 - Game classes own recognition, parsing/validation, formatting, and game-specific standardized scoring. They produce plain typed data; database records are not class instances and do not store methods.
-- Use `Score<TResult>` for shared submission fields plus a typed game-specific `result` such as `WordleResult`. Current player display names are temporary; final account linkage, database schema, puzzle-date conversion, and standardized scoring formulas remain unresolved.
+- Use `Result<TResult>` for shared submission fields plus a typed game-specific `result` such as `WordleResult`. The current record fields are id, playerId, gameName, datePlayed, submitTime, score, and result. The registry generateResult helper can build a record but is not called by the form or connected to saving. Authentication/account linkage, database schema, and standardized scoring formulas remain unresolved; Wordle puzzle-date calculation exists.
 - The server must validate submitted values and calculate trusted game-specific values before storage. Client-side parsing is for feedback and does not establish trust.
 
 ## Primary objective: learn full-stack development
@@ -128,10 +130,10 @@ Start with Wordle and expand after the core workflow is understood. These milest
 | --- | --- | --- | --- |
 | 1. Local setup | Customized homepage | Terminal, npm, project structure, development server, Git | User can run the app and explain their first edit |
 | 2. Static scoreboard | Sample Wordle scores rendered from an array | Semantic HTML, CSS, TypeScript objects, React components and props | Sample scores render correctly |
-| 3. Score entry | Automatic valid-result preview and explicit Submit, initially with temporary local records | State, derived data, events, forms, validation | Valid input previews before Submit; submitted records appear in score history |
+| 3. Result entry | Automatic valid-result preview and explicit Submit, initially with temporary local records | State, derived data, events, forms, validation | Valid input previews before Submit; submitted records appear in result history |
 | 4. First deployment | Public prototype | GitHub, build checks, Vercel deployment | App works at a public URL |
-| 5. Backend basics | Score submission endpoint | HTTP, JSON, requests and responses, server validation | User can trace a submission from browser to server |
-| 6. Persistent data | Scores stored in Supabase | SQL, tables, keys, constraints, migrations | Scores survive a reload |
+| 5. Backend basics | Result submission endpoint | HTTP, JSON, requests and responses, server validation | User can trace a submission from browser to server |
+| 6. Persistent data | Results stored in Supabase | SQL, tables, keys, constraints, migrations | Results survive a reload |
 | 7. Authentication | Sign-in and personal submissions | Sessions, authentication versus authorization, row-level security | Users can modify only their own scores |
 | 8. Friend groups | Groups and memberships | Relational modeling, joins, permissions | Group data is accessible only to members |
 | 9. Leaderboards | Homepage player standings from game-specific standardized scores (1–100), with daily/weekly group views | Normalization, aggregation, ranking, dates, time zones | Agreed formulas produce expected rankings from known records |
@@ -162,16 +164,16 @@ Last checked: October 15, 2026.
 - Installed tools observed: Node.js 24.21.0, npm 11.19.0, Git 2.55.0, and the VS Code `code` command.
 - These are observations, not pinned version requirements. Recheck when necessary.
 - No Supabase project, GitHub repository, or Vercel deployment has been verified.
-- The homepage directly shows `ScoreForm` and the player leaderboard, without the submission scoreboard/table. The form recognizes/parses Wordle once, keeps a parsed preview with trimmed player name, and renders `WordleScoreCard`; either input edit clears preview/feedback. `GameScoreForm` was removed, and the unused generic `ScoreBoard` no longer contains a form. No records, authentication, scoring, or persistence were added, and no app checks were run.
+- The homepage directly shows `ResultForm` and the player leaderboard, without the submission table. A live solved-Wordle preview derives from name/share input and appears beside the form on wider screens (stacked on mobile). Submit requires a nonempty trimmed name and valid result; the current handler explicitly says nothing was saved because persistence is not connected. No server validation, score calculation, date conversion, authentication, or saving was added, and no app checks were run.
 - The homepage includes a separate player leaderboard prototype with name, points, and streak columns and selectable ordering. `samplePlayers` values and IDs are display fixtures, not derived metrics or authenticated users. Point aggregation, streak definition, and time windows remain undecided. No app checks were run for it.
-- A `/my-scores` page shows sample history for temporary demo player `ZBot`, linked from the homepage. Authentication is deferred at the user's request; this page does not establish identity, enforce permissions, persist data, or include new submissions. No app checks were run for it.
+- The user explicitly removed `/my-results`, `ResultBoard`, `ResultRow`, and `ResultTable`, plus the homepage history link, to reimplement them from scratch. Rebuilding is pending and is not authorization to restore those files automatically. `ResultForm`, shared/game-specific cards, `Leaderboard`, and result data/types remain. No app checks were run for removal.
 - Milestone 1 (local setup and customized homepage) is complete: the user ran the development server, edited the homepage heading and tagline, learned the starter project structure, and reports that the project has been pushed to GitHub. The remote was not independently verified.
-- Milestone 2 (static Wordle scoreboard) is in progress: typed score data, sample data, `ScoreCard`, shared type/data modules, Tailwind styling, and generic board/form components are implemented. The user replaced visible guess ranking with submission-date ordering; newest-first is the current implementation assumption. Scores carry separate puzzle dates and submission timestamps. The old ranking helper remains unused. Form feedback parses solved Wordle results, but adding submissions is not implemented; final presentation and understanding remain to be confirmed.
+- Milestone 2 (static Wordle scoreboard) is in progress: typed result data, sample data, `ResultCard`, shared type/data modules, Tailwind styling, and generic board/form components are implemented. The user replaced visible guess ranking with submission-date ordering; newest-first is the current implementation assumption. Results carry separate puzzle dates and submission timestamps. The earlier ranking helper is no longer present in the current source. Form feedback parses solved Wordle results, but adding submissions is not implemented; final presentation and understanding remain to be confirmed.
 - Environment setup progress: `.nvmrc` pins Node.js 24.22.0 (npm 12.2.0 observed). The user's `~/.zshrc` now loads a project-based nvm auto-switch hook on shell startup and directory changes; switching to a temporary Node 20.17.0 fixture and back was verified. Existing terminals need `source ~/.zshrc` or a new terminal to load the hook. Missing versions prompt the user to run `nvm install` rather than downloading automatically. See `docs/learning-notes.md` for explanation.
 
 The next session should resume with:
-1. Inspect the current `ScoreForm` and Wordle behavior, then implement the planned local preview-on-edit workflow in a small step. Keep parsing separate from saving; there is no backend save yet, so do not display a false saved confirmation.
-2. Continue from abstract `Game<TResult>` and its stateless `WordleGame` subclass for behavior, plus plain `Score<TResult>` for individual submissions. Records have common player/game/date/message/standardized-score fields and a typed game-specific `result`; fixtures explicitly use `Score<Pick<WordleResult, "guesses">>`, not full parsed grids. Add game dispatch incrementally and agree on Wordle's standardized-score formula before implementing scoring. No form-to-record integration, score calculation, authenticated user ID, or persistence exists yet. Later connect stored records to a separate player leaderboard. Preserve submission-date ordering in any submission list.
+1. Review the implemented live `ResultForm` preview and validity-gated Submit, then choose the next small step toward result records and saving. Keep local parsing separate from server validation/persistence; there is no backend save yet, so do not display a false saved confirmation.
+2. Continue from abstract `Game<TResult>` and its stateless `WordleGame` subclass for behavior, plus plain `Result<TResult>` for individual submissions. Records have common player/game/date/message/standardized-score fields and a typed game-specific `result`; fixtures explicitly use `Result<Pick<WordleResult, "guesses">>`, not full parsed grids. The typed registry in `lib/games/registry.tsx` now dispatches identification and card rendering, with Wordle as its only registration. Keep `ResultForm` game-neutral and game classes independent of React. Extend registered games incrementally and agree on Wordle's standardized-score formula before implementing scoring. No form-to-record integration, score calculation, authenticated user ID, or persistence exists yet. Later connect stored records to a separate player leaderboard. Preserve submission-date ordering in any submission list.
 3. Continue through small exercises, marking milestones complete only when their completion criteria are satisfied.
 
 Future sessions should inspect the actual files and user changes before deciding where to resume. Update progress here as milestones are completed or requirements change; do not mark suggested work as completed.

@@ -53,12 +53,31 @@ export class WordleGame extends Game<WordleResult> {
     return { puzzleNumber, guesses, grid };
   }
 
+  dayPlayed(result: WordleResult): string | null {
+    if (!Number.isSafeInteger(result.puzzleNumber) || result.puzzleNumber < 0) {
+      return null;
+    }
+
+    // Puzzle #0 was June 19, 2021. JavaScript month indexes start at zero.
+    const firstPuzzleDate = Date.UTC(2021, 5, 19);
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+    const puzzleDate = new Date(
+      firstPuzzleDate + result.puzzleNumber * millisecondsPerDay,
+    );
+
+    if (Number.isNaN(puzzleDate.getTime()) || puzzleDate.getUTCFullYear() > 9999) {
+      return null;
+    }
+
+    return puzzleDate.toISOString().slice(0, 10);
+  }
+
   standardScore(_result: WordleResult): number | null {
     // Wordle's standardized scoring formula has not been decided yet.
     return null;
   }
 
-  formatResult(result: WordleResult): string {
+  resultMessage(result: WordleResult): string {
     const guessLabel = result.guesses === 1 ? "guess" : "guesses";
     return `Wordle puzzle ${result.puzzleNumber}: solved in ${result.guesses} ${guessLabel}.`;
   }
@@ -70,7 +89,7 @@ export class WordleGame extends Game<WordleResult> {
       return "Couldn't read this result. Paste a solved Wordle result with its header and each five-tile row on a separate line, using ⬛, ⬜, 🟨, or 🟩. Remove any links.";
     }
 
-    return this.formatResult(result);
+    return this.resultMessage(result);
   }
 }
 

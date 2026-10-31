@@ -4,6 +4,8 @@ export abstract class Game<TResult> {
   abstract recognizes(text: string): boolean;
   // Returns result based on pasted text, null if not valid
   abstract parse(text: string): TResult | null;
+  // Puzzle calendar date (YYYY-MM-DD), not the submission timestamp.
+  abstract dayPlayed(result: TResult): string | null;
   // Return a standardized score from 1–100, or null while scoring is undefined.
   abstract standardScore(result: TResult): number | null;
   // Return a string representing the result of the game
