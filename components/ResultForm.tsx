@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { identifyResult } from "@/lib/games/registry";
+import { saveResult } from "@/lib/resultStorage";
 
 const ResultForm = () => {
   const [playerName, setPlayerName] = useState("");
@@ -24,11 +25,19 @@ const ResultForm = () => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!canSubmit) {
+    if (!canSubmit || !preview) {
       return;
     }
 
-    setFeedback("Your result is valid, but saving isn't connected yet. Nothing has been saved.");
+    try {
+      // Temporary local identity, not an authenticated account ID.
+      const playerId = `local:${player.toLowerCase()}`;
+      const record = preview.generateResult(playerId);
+      saveResult({ record, playerName: player, shareText: shareResult });
+      setFeedback("Result saved in this browser. Open All results to view it.");
+    } catch {
+      setFeedback("Couldn't save this result in your browser. Your input is still here so you can try again.");
+    }
   };
 
   return (

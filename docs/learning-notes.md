@@ -15,6 +15,7 @@ These notes record useful explanations and verified outcomes, not a transcript. 
 - [Product direction: shared input and player leaderboard](#product-direction-shared-input-and-player-leaderboard)
 - [Sortable player leaderboard prototype](#sortable-player-leaderboard-prototype)
 - [Personal score history and file-based routing](#personal-score-history-and-file-based-routing)
+- [Browser-local saved results and card grid](#browser-local-saved-results-and-card-grid)
 - [Tailwind styling and alignment](#tailwind-styling-and-alignment)
 - [Git and GitHub workflow](#git-and-github-workflow)
 - [Progress and next exercise](#progress-and-next-exercise)
@@ -198,7 +199,7 @@ The next small step added `handleResetResults`, which now restores the `initialR
 
 **Live result review:** `ResultForm` derives a preview through `identifyResult(shareResult)` during rendering, rather than storing a submitted preview snapshot or importing Wordle behavior. Editing or pasting text updates the card immediately; editing the name updates its displayed player. `canSubmit` requires both a nonempty trimmed name and a valid parsed result. Invalid/incomplete input shows a preview placeholder; helper text and a screen-reader validity status explain the state without treating every edit as a submission error.
 
-The form and card use equal columns from the medium breakpoint and stack on smaller screens. The homepage width and padding were adjusted for that layout. Input changes clear only explicit submission feedback because current parsed preview data is derived, not separately stored. The Submit result button is disabled until valid; its handler prevents navigation and honestly reports that saving is not connected and nothing was saved. This adds no record persistence, server validation, scoring formula, or puzzle-date conversion. Only solved standard-palette Wordle input is supported. No app checks were run.
+The form and card use equal columns from the medium breakpoint and stack on smaller screens. The homepage width and padding were adjusted for that layout. Input changes clear only explicit submission feedback because current parsed preview data is derived, not separately stored. The Submit result button is disabled until valid; its handler now prevents navigation and saves browser-local records as described below. The later browser-local persistence is described below; this adds no server validation or scoring formula. Only solved standard-palette Wordle input is supported. No app checks were run.
 
 **Function placement discussed:** local handlers live inside `ResultBoard`, where closures let them access the component's state and setters. A closure is a function together with access to the surrounding variables where it was defined. The earlier pure ranking helper illustrated separating reusable logic from React; it is no longer present in the current source. This is a responsibility and scope choice; no performance optimization was needed for these handlers.
 
@@ -245,7 +246,7 @@ The requested `standardScore(result: TResult): number | null` contract requires 
 
 **Result builder:** [lib/games/registry.tsx](../lib/games/registry.tsx) now exports `generateResult<TResult>(game, playerId, result)`. `Game<TResult>` is the behavior provider; `TResult` is its plain parsed data. The helper trims the player ID and throws for an empty ID or an unavailable puzzle date. It constructs a record with `crypto.randomUUID()`, the game's name/date/standardized score, current ISO `submitTime`, and the parsed result. Wordle's score remains `null` until its formula is decided.
 
-A valid registry preview also exposes `generateResult(playerId)`, closing over its already paired game and parsed result and delegating to the shared builder. Its general registry boundary returns `Result` with unknown result details; the internal generic pairing remains type-specific. The helper stays in the registry where the user started it, rather than becoming a game method. Building an object is not saving it: no form submission or edit flow calls the builder yet, no player ID is fabricated, and no authentication, persistence, or server validation was added. No checks were run.
+A valid registry preview also exposes `generateResult(playerId)`, closing over its already paired game and parsed result and delegating to the shared builder. Its general registry boundary returns `Result` with unknown result details; the internal generic pairing remains type-specific. The helper stays in the registry where the user started it, rather than becoming a game method. Building an object is not saving it: the form now calls it only on Submit and uses an explicit temporary local name-based ID for browser storage. Authentication, shared persistence, and server validation are not implemented. No checks were run.
 
 **Current limits:** the parser accepts plain multiline emoji, so the Discord Markdown-linked example is rejected unless pasted as plain tiles. Failed results marked `X` and high-contrast palettes still need explicit support decisions. It does not validate puzzle dates or prove that a result is authentic. No parser tests or app checks were run; these describe the implemented rules, not verified outcomes.
 
@@ -288,7 +289,7 @@ The registry is a UI integration module because it maps behavior to React card c
 
 **Design reasoning:** the recommended input flow accepts pasted, typed, and edited text through the same controlled `onChange` flow; do not restrict the field to paste events. The current small local parser can run immediately without a debounce, which would only add delayed work at this stage. Derive detection, validity, and preview from current input instead of keeping a submitted-input snapshot that can become stale; this part is now implemented. Avoid reporting an error on every incomplete edit, and make no server calls until Submit. Revisit debouncing if later processing is measurably expensive or requires remote calls. These choices support prompt review while keeping saving a deliberate action.
 
-Automatic live preview and Submit gating are now implemented locally. Submitting valid input still saves nothing and explicitly says so. Server validation, database writes, and genuine post-save success feedback remain planned. Game classes remain behavior providers, while `Result<TResult>` is plain submission data for eventual storage; constructing a class instance is not a database save. No application code or checks were performed for this planning discussion.
+Automatic live preview, Submit gating, and browser-local saving are implemented. Success follows the local storage write. Server validation and shared database writes remain planned; local persistence is not a backend save. Game classes remain behavior providers, while `Result<TResult>` is plain submission data for eventual storage; constructing a class instance is not a database save. No application code or checks were performed for this planning discussion.
 
 **References**
 
@@ -335,6 +336,23 @@ This displays sample history only. It does not authenticate anyone, persist data
 
 - [Next.js: layouts and pages](https://nextjs.org/docs/app/getting-started/layouts-and-pages) — folder-based routes, page exports, and links between pages.
 - [MDN: Array.filter](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter) — selecting matching entries into a new shallow array.
+
+## Browser-local saved results and card grid
+
+**Implementation references:** [lib/resultStorage.ts](../lib/resultStorage.ts); [app/results/page.tsx](../app/results/page.tsx); [components/ResultsGrid.tsx](../components/ResultsGrid.tsx); [components/ResultForm.tsx](../components/ResultForm.tsx).
+
+The user requested a page showing all submitted cards in a grid to inspect stored records. `/results` now supplies the page shell, and client `ResultsGrid` reads browser storage after mounting. Loading storage in a mount effect waits until browser APIs are available. Records order by newest `submitTime` and render one/two/three columns across responsive breakpoints, with loading, empty, and error states. The homepage links to “All results.” The removed personal-history/table components were not restored.
+
+`SavedResult` is a storage envelope containing the plain `record: Result`, entered `playerName`, and original `shareText`. The versioned key `battledle.results.v1` separates this format for future changes. Loading parses JSON and checks minimum envelope/record fields and a finite timestamp; this is not complete game or server validation. Saving loads existing entries and appends a new one. A malformed stored collection causes an error rather than being silently overwritten.
+
+Submit now calls the preview's `generateResult`, using an explicitly temporary `local:<lowercase trimmed name>` player ID, then saves the envelope to `localStorage`. Success appears only after `setItem` finishes; errors retain the inputs. This ID is not authenticated identity. Storage is local to that browser/origin, not a database or shared account, and no player metrics are calculated.
+
+The grid currently reparses saved `shareText` through the game registry to recreate each game card. It contains actual saved records rather than fabricated complete fixtures. Rendering from normalized stored details and deciding how scoring versions affect historical cards remain future work, especially once formulas change; the current Wordle standardized score is still `null`. No app checks were run and no milestone completion is implied.
+
+**References**
+
+- [React: synchronizing with effects](https://react.dev/learn/synchronizing-with-effects) — using an effect to synchronize a component with an external browser system.
+- [MDN: localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) — browser/origin storage and its string-based persistence API.
 
 ## Tailwind styling and alignment
 
@@ -388,7 +406,7 @@ Never commit credentials, tokens, or other secrets. [.gitignore](../.gitignore) 
 - No verification was requested for tonight's checkpoint. No fresh lint, type, build, or browser checks were run by the note-taker. The passing setup checks above are historical and do not certify the later scoreboard changes.
 - Latest checkpoint: the user extracted `ResultBoard` and corrected its missing return and mismatched heading tags. No fresh tests, lint, type checks, or browser checks were run for this extraction. Milestone 2 has not been marked complete.
 - Local-state checkpoint: generic `ResultBoard` initializes `results` from `initialResults` and orders newest first through supplied rendering/key functions. It is not mounted on the current homepage; `ResultForm` and the player leaderboard are mounted directly. No checks were run for this refactor; no milestone completion is implied.
-- Input checkpoint: `ResultForm` derives a live Wordle preview from share text and trimmed name, shown beside the form on wider screens. Submit is enabled only for valid name/result; its current handler explicitly reports no save because persistence is unconnected. No app checks were run.
+- Input checkpoint: `ResultForm` derives a live Wordle preview from share text and trimmed name, shown beside the form on wider screens. Submit is enabled only for valid name/result and now saves to browser localStorage, with success only after the write. No app checks were run.
 - Mentoring preference update: the user now asks the agent to write each small code change directly in the files and keep explaining it. The guide records this standing preference; the learning roadmap still does not authorize building the whole application at once.
 - Parser checkpoint: `WordleGame.parse` validates the solved-result header and plain standard-palette emoji grid; the registry connects it to the game-neutral form. The unused old parser wrapper/directory were removed at the user's request. Date validation, failure representation, high-contrast support, and adding scores remain future work; no submission policy has been implemented.
 - Product checkpoint: the user chose a shared game-identifying input, structured stored records, and a separate player leaderboard with per-game scoring classes producing 1–100 scores. The first Wordle behavior class now exists; the typed game/card registry is implemented with Wordle only, while formulas and leaderboard aggregation remain undecided. No implementation or checks were performed for this design discussion.

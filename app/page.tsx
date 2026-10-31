@@ -1,6 +1,7 @@
 import Leaderboard from "@/components/Leaderboard";
 import { samplePlayers } from "@/data/samplePlayers";
 import ResultForm from "@/components/ResultForm";
+import Link from "next/link";
 
 type AppIntroProps = {
   tagline: string;
@@ -25,6 +26,9 @@ const Home = () => {
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-5xl flex-col items-center justify-between py-12 px-6 bg-white dark:bg-black sm:items-start sm:px-10 sm:py-20">
         <AppIntro tagline="Crown the true goat of daily games." />
+        <nav aria-label="Page navigation" className="my-6">
+          <Link href="/results" className="underline underline-offset-4">All results</Link>
+        </nav>
         <section className="w-full min-w-0">
           <h2 className="text-2xl font-bold">Enter a game result</h2>
           <ResultForm />
