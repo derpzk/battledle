@@ -6,15 +6,16 @@ type WordleResultCardProps = {
   result: WordleResult;
   player?: string;
   datePlayed?: string;
+  score?: number | null;
 };
 
-const WordleResultCard = ({ result, player, datePlayed }: WordleResultCardProps) => {
+const WordleResultCard = ({ result, player, datePlayed, score }: WordleResultCardProps) => {
   return (
     <ResultCard
       gameName="Wordle"
       player={player}
       datePlayed={datePlayed ?? wordleGame.dayPlayed(result) ?? undefined}
-      score={wordleGame.standardScore(result)}
+      score={score === undefined ? wordleGame.standardScore(result) : score}
       message={wordleGame.resultMessage(result)}
       resultLabel={`Puzzle #${result.puzzleNumber.toLocaleString("en-US")} · ${result.guesses}/6`}
     >

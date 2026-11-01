@@ -1,32 +1,50 @@
 import type { Result } from "@/types/result";
 
-export type SavedResult = {
-  record: Result;
-  playerName: string;
-  shareText: string;
+const isResult = (value: unknown): value is Result => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<Result>;
+  return typeof record.id === "string" && typeof record.playerId === "string" &&
+    typeof record.gameName === "string" && typeof record.datePlayed === "string" &&
+    typeof record.submitTime === "string" &&
+    Number.isFinite(Date.parse(record.submitTime)) &&
+    (record.score === null || (typeof record.score === "number" && Number.isFinite(record.score))) &&
+    (record.playerName === undefined || typeof record.playerName === "string") &&
+    "result" in record;
 };
 
 const storageKey = "battledle.results.v1";
 
-export const loadResults = (): SavedResult[] => {
+export const loadResults = (): Result[] => {
   const stored = localStorage.getItem(storageKey);
   if (!stored) return [];
 
-  const entries: unknown = JSON.parse(stored);
-  if (!Array.isArray(entries) || !entries.every((entry) =>
-    entry && typeof entry.playerName === "string" &&
-    typeof entry.shareText === "string" && entry.record &&
-    typeof entry.record.id === "string" &&
-    typeof entry.record.submitTime === "string" &&
-    Number.isFinite(Date.parse(entry.record.submitTime)),
-  )) {
+  const parsed: unknown = JSON.parse(stored);
+  if (!Array.isArray(parsed)) {
     throw new Error("Saved results have an unsupported format.");
   }
 
+  let migrated = false;
+  const entries: unknown[] = parsed.map((entry: unknown) => {
+    if (entry && typeof entry === "object" && "record" in entry && isResult(entry.record)) {
+      migrated = true;
+      const playerName = "playerName" in entry && typeof entry.playerName === "string"
+        ? entry.playerName : entry.record.playerName;
+      return { ...entry.record, ...(playerName === undefined ? {} : { playerName }) };
+    }
+    return entry;
+  });
+
+  if (!entries.every(isResult)) {
+    throw new Error("Saved results have an unsupported format.");
+  }
+
+  // Preserve existing submissions while removing the old envelope/share text.
+  if (migrated) localStorage.setItem(storageKey, JSON.stringify(entries));
   return entries;
 };
 
-export const saveResult = (entry: SavedResult): void => {
+export const saveResult = (entry: Result): void => {
+  if (!isResult(entry)) throw new Error("Cannot save an invalid result record.");
   const entries = loadResults();
   localStorage.setItem(storageKey, JSON.stringify([...entries, entry]));
 };

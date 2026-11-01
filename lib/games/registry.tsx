@@ -3,6 +3,7 @@ import type { Game } from "@/lib/games/Game";
 import type { Result } from "@/types/result";
 import { wordleGame } from "@/lib/games/WordleGame";
 import WordleResultCard from "@/components/resultCards/WordleResultCard";
+import type { WordleResult } from "@/types/wordle";
 
 type ResultPreview = {
   gameName: string;
@@ -75,6 +76,37 @@ const registerGame = <TResult,>(
 };
 
 const registeredGames = [registerGame(wordleGame, WordleResultCard)];
+
+const isWordleResult = (value: unknown): value is WordleResult => {
+  if (!value || typeof value !== "object") return false;
+  const result = value as Partial<WordleResult>;
+  return Number.isSafeInteger(result.puzzleNumber) &&
+    typeof result.puzzleNumber === "number" && result.puzzleNumber >= 0 &&
+    typeof result.guesses === "number" && Number.isInteger(result.guesses) &&
+    result.guesses >= 1 && result.guesses <= 6 &&
+    Array.isArray(result.grid) && result.grid.length === result.guesses &&
+    result.grid.every((row) => typeof row === "string" && /^[⬛⬜🟨🟩]{5}$/u.test(row));
+};
+
+// Saved cards use structured data and the saved score, not reparsed share text.
+const recordRenderers = [
+  {
+    gameName: wordleGame.gameName,
+    render: (record: Result): ReactNode => isWordleResult(record.result) ? (
+      <WordleResultCard
+        result={record.result}
+        player={record.playerName ?? record.playerId}
+        datePlayed={record.datePlayed}
+        score={record.score}
+      />
+    ) : null,
+  },
+];
+
+export const renderSavedResult = (record: Result): ReactNode => {
+  const renderer = recordRenderers.find((entry) => entry.gameName === record.gameName);
+  return renderer?.render(record) ?? null;
+};
 
 export const identifyResult = (text: string): ResultIdentification => {
   if (!text.trim()) return { status: "empty" };

@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { identifyResult } from "@/lib/games/registry";
+import { renderSavedResult } from "@/lib/games/registry";
 import { loadResults } from "@/lib/resultStorage";
-import type { SavedResult } from "@/lib/resultStorage";
+import type { Result } from "@/types/result";
 
 const ResultsGrid = () => {
-  const [entries, setEntries] = useState<SavedResult[]>([]);
+  const [entries, setEntries] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     try {
       setEntries(loadResults().sort((first, second) =>
-        Date.parse(second.record.submitTime) - Date.parse(first.record.submitTime),
+        Date.parse(second.submitTime) - Date.parse(first.submitTime),
       ));
     } catch {
       setError("Couldn't read saved results from this browser. Your stored data has not been changed.");
@@ -36,13 +36,13 @@ const ResultsGrid = () => {
 
   return (
     <ul className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 xl:grid-cols-3">
-      {entries.map(({ record, playerName, shareText }) => {
-        const identified = identifyResult(shareText);
+      {entries.map((record) => {
+        const card = renderSavedResult(record);
         return (
           <li key={record.id} className="min-w-0">
-            {identified.status === "valid" ? identified.preview.renderCard(playerName) : (
+            {card ?? (
               <div className="rounded-2xl border border-zinc-300 p-6 dark:border-zinc-700">
-                <p className="font-semibold">{playerName} · {record.gameName}</p>
+                <p className="font-semibold">{record.playerName ?? record.playerId} · {record.gameName}</p>
                 <p>This saved result cannot currently be rendered.</p>
               </div>
             )}
